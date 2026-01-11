@@ -558,16 +558,13 @@ func (s *Server) markOnline(userID int64) {
 }
 
 func (s *Server) markOffline(userID int64) {
-	now := time.Now()
 	s.onlineMu.Lock()
 	defer s.onlineMu.Unlock()
 	if s.online[userID] > 1 {
 		s.online[userID]--
-		s.lastSeen[userID] = now
 		return
 	}
 	delete(s.online, userID)
-	s.lastSeen[userID] = now
 }
 
 func (s *Server) getOnlineStatus(userID int64) (bool, *time.Time) {
