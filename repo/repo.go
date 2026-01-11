@@ -292,6 +292,51 @@ func (r *Repository) FindOrCreateChat(ctx context.Context, userID, peerID int64)
 	return chatID, nil
 }
 
+func (r *Repository) UpsertPushToken(ctx context.Context, userID int64, token, environment string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO push_tokens (token, user_id, environment)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (token)
+		 DO UPDATE SET user_id = EXCLUDED.user_id,
+		               environment = EXCLUDED.environment,
+		               updated_at = NOW()`,
+		token, userID, environment,
+	)
+	return err
+}
+
+func (r *Repository) ListPushTokens(ctx context.Context, userIDs []int64) ([]model.PushToken, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, 0, len(userIDs))
+	args := make([]interface{}, 0, len(userIDs))
+	for i, id := range userIDs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(
+		`SELECT user_id, token, environment, updated_at
+		   FROM push_tokens
+		  WHERE user_id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []model.PushToken
+	for rows.Next() {
+		var token model.PushToken
+		if err := rows.Scan(&token.UserID, &token.Token, &token.Environment, &token.UpdatedAt); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, rows.Err()
+}
+
 func (r *Repository) ListChatMemberIDs(ctx context.Context, chatID int64) ([]int64, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT user_id FROM chat_members WHERE chat_id = $1`, chatID)
 	if err != nil {

@@ -2,12 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/websocket"
 
 	"grape/dto"
+	"grape/model"
+	"grape/service"
 )
 
 type client struct {
@@ -51,10 +54,12 @@ func (s *Server) HandleWebsocket(w http.ResponseWriter, r *http.Request) {
 		send:   make(chan []byte, 16),
 	}
 	s.registerClient(c)
+	log.Printf("ws connect user_id=%d chat_id=%d addr=%s", userID, chatID, r.RemoteAddr)
 	s.markOnline(userID)
 	defer s.markOffline(userID)
 	go c.writeLoop()
 	c.readLoop(s)
+	log.Printf("ws disconnect user_id=%d chat_id=%d addr=%s", userID, chatID, r.RemoteAddr)
 	s.unregisterClient(c)
 }
 
@@ -74,10 +79,12 @@ func (s *Server) HandleChatListWebsocket(w http.ResponseWriter, r *http.Request)
 		send:   make(chan []byte, 16),
 	}
 	s.registerChatListClient(c)
+	log.Printf("ws_chats connect user_id=%d addr=%s", userID, r.RemoteAddr)
 	s.markOnline(userID)
 	defer s.markOffline(userID)
 	go c.writeLoop()
 	c.readLoop()
+	log.Printf("ws_chats disconnect user_id=%d addr=%s", userID, r.RemoteAddr)
 	s.unregisterChatListClient(c)
 }
 
@@ -113,6 +120,7 @@ func (c *client) readLoop(s *Server) {
 		}
 		s.broadcast(c.chatID, payload)
 		s.notifyChatUpdate(c.chatID)
+		go s.sendPushForMessage(msg)
 	}
 }
 
@@ -238,5 +246,45 @@ func (s *Server) notifyChatUpdate(chatID int64) {
 			continue
 		}
 		s.broadcastChatList(memberID, payload)
+	}
+}
+
+func (s *Server) sendPushForMessage(msg model.Message) {
+	if !s.svc.PushEnabled() {
+		return
+	}
+	memberIDs, err := s.svc.ListChatMemberIDs(s.baseCtx, msg.ChatID)
+	if err != nil {
+		return
+	}
+	targetIDs := make([]int64, 0, len(memberIDs))
+	for _, memberID := range memberIDs {
+		if memberID == msg.SenderID {
+			continue
+		}
+		online, _ := s.getOnlineStatus(memberID)
+		if online {
+			continue
+		}
+		targetIDs = append(targetIDs, memberID)
+	}
+	if len(targetIDs) == 0 {
+		return
+	}
+	tokens, err := s.svc.ListPushTokens(s.baseCtx, targetIDs)
+	if err != nil {
+		return
+	}
+	payload := service.PushPayload{
+		Title: "New message",
+		Body:  "You have a new message",
+		Data: map[string]interface{}{
+			"chat_id":    msg.ChatID,
+			"message_id": msg.ID,
+			"sender_id":  msg.SenderID,
+		},
+	}
+	for _, token := range tokens {
+		_ = s.svc.SendPush(s.baseCtx, token, payload)
 	}
 }

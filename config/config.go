@@ -12,6 +12,10 @@ type Config struct {
 	TokenTTL    time.Duration
 	SMSRUAPIID  string
 	SMSSender   string
+	APNSTeamID  string
+	APNSKeyID   string
+	APNSKeyPath string
+	APNSTopic   string
 }
 
 func Load() Config {
@@ -31,6 +35,10 @@ func Load() Config {
 		TokenTTL:    time.Duration(ttlParsed) * time.Hour,
 		SMSRUAPIID:  os.Getenv("SMS_RU_API_ID"),
 		SMSSender:   os.Getenv("SMS_SENDER"),
+		APNSTeamID:  os.Getenv("APNS_TEAM_ID"),
+		APNSKeyID:   os.Getenv("APNS_KEY_ID"),
+		APNSKeyPath: os.Getenv("APNS_KEY_PATH"),
+		APNSTopic:   os.Getenv("APNS_TOPIC"),
 	}
 }
 

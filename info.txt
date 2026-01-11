@@ -43,6 +43,13 @@
   curl "http://localhost:8081/api/users/online?ids=1,2" \
     -H "Authorization: Bearer $TOKEN"
 
+  Push регистрация:
+
+  curl -X POST http://localhost:8081/api/push/register \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"token":"DEVICE_TOKEN","environment":"production"}'
+
   Создать чат:
 
   curl -X POST http://localhost:8081/api/chats \

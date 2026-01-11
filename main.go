@@ -31,7 +31,11 @@ func main() {
 
 	repository := repo.New(db)
 	smsSender := service.NewSMSRUSender(cfg.SMSRUAPIID, cfg.SMSSender)
-	svc := service.New(repository, cfg.TokenTTL, smsSender)
+	apnsSender, err := service.NewAPNSSender(cfg.APNSTeamID, cfg.APNSKeyID, cfg.APNSKeyPath, cfg.APNSTopic)
+	if err != nil && !errors.Is(err, service.ErrPushNotConfigured) {
+		log.Printf("apns disabled: %v", err)
+	}
+	svc := service.New(repository, cfg.TokenTTL, smsSender, apnsSender)
 	srv := handler.NewServer(svc, ctx)
 
 	mux := http.NewServeMux()
@@ -41,6 +45,7 @@ func main() {
 	mux.HandleFunc("/api/phone/send_code", srv.HandlePhoneSendCode)
 	mux.HandleFunc("/api/phone/verify", srv.HandlePhoneVerify)
 	mux.HandleFunc("/api/users/me", srv.RequireAuth(srv.HandleMe))
+	mux.HandleFunc("/api/push/register", srv.RequireAuth(srv.HandlePushRegister))
 	mux.HandleFunc("/api/users/online", srv.RequireAuth(srv.HandleUsersOnline))
 	mux.HandleFunc("/api/users/search", srv.RequireAuth(srv.HandleUserSearch))
 	mux.HandleFunc("/api/users/random", srv.RequireAuth(srv.HandleRandomUsers))

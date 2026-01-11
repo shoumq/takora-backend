@@ -22,13 +22,19 @@ var ErrCodeExpired = errors.New("code expired")
 var ErrCodeNotFound = errors.New("code not found")
 
 type Service struct {
-	repo      *repo.Repository
-	tokenTTL  time.Duration
-	smsSender SMSSender
+	repo       *repo.Repository
+	tokenTTL   time.Duration
+	smsSender  SMSSender
+	pushSender PushSender
 }
 
-func New(r *repo.Repository, tokenTTL time.Duration, smsSender SMSSender) *Service {
-	return &Service{repo: r, tokenTTL: tokenTTL, smsSender: smsSender}
+func New(r *repo.Repository, tokenTTL time.Duration, smsSender SMSSender, pushSender PushSender) *Service {
+	return &Service{
+		repo:       r,
+		tokenTTL:   tokenTTL,
+		smsSender:  smsSender,
+		pushSender: pushSender,
+	}
 }
 
 func (s *Service) Register(ctx context.Context, username, password, publicKey, phone string) (model.User, error) {

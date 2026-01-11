@@ -333,7 +333,39 @@ func (s *Server) HandleUserSearch(w http.ResponseWriter, r *http.Request, userID
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) HandleUsersOnline(w http.ResponseWriter, r *http.Request, _ int64) {
+func (s *Server) HandlePushRegister(w http.ResponseWriter, r *http.Request, userID int64) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Token       string `json:"token"`
+		Environment string `json:"environment"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	req.Environment = strings.TrimSpace(req.Environment)
+	if req.Token == "" {
+		writeError(w, http.StatusBadRequest, "token required")
+		return
+	}
+	switch req.Environment {
+	case service.PushEnvSandbox, service.PushEnvProduction:
+	default:
+		writeError(w, http.StatusBadRequest, "invalid environment")
+		return
+	}
+	if err := s.svc.RegisterPushToken(r.Context(), userID, req.Token, req.Environment); err != nil {
+		writeError(w, http.StatusInternalServerError, "push register failed")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) HandleUsersOnline(w http.ResponseWriter, r *http.Request, userID int64) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -368,6 +400,7 @@ func (s *Server) HandleUsersOnline(w http.ResponseWriter, r *http.Request, _ int
 		writeError(w, http.StatusBadRequest, "ids required")
 		return
 	}
+	log.Printf("users_online requester=%d ids=%v", userID, ids)
 	resp := make([]dto.OnlineStatus, 0, len(ids))
 	for _, id := range ids {
 		online, lastSeen := s.getOnlineStatus(id)

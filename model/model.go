@@ -41,3 +41,10 @@ type ChatSummary struct {
 	CreatedAt   time.Time
 	LastMessage *Message
 }
+
+type PushToken struct {
+	UserID      int64
+	Token       string
+	Environment string
+	UpdatedAt   time.Time
+}
